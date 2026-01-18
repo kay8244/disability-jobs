@@ -66,41 +66,36 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // Build orderBy clause
+    // Check if we need distance-based sorting
+    const isDistanceSort = sortField === 'distance' && userLat !== undefined && userLng !== undefined
+
+    // Build orderBy clause (only used for non-distance sorting)
     let orderBy: Prisma.JobOrderByWithRelationInput = {}
     if (sortField === 'deadline') {
       orderBy = { deadline: sortOrder as Prisma.SortOrder }
     } else if (sortField === 'createdAt') {
       orderBy = { createdAt: sortOrder as Prisma.SortOrder }
-    } else {
+    } else if (!isDistanceSort) {
       orderBy = { updatedAt: sortOrder as Prisma.SortOrder }
     }
 
-    // Fetch jobs with company info
-    const [jobs, total] = await Promise.all([
-      prisma.job.findMany({
+    let jobsWithDistance: JobWithCompany[]
+    let total: number
+
+    if (isDistanceSort) {
+      // For distance sorting, fetch ALL jobs first, then sort and paginate
+      const allJobs = await prisma.job.findMany({
         where,
         include: { company: true },
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      prisma.job.count({ where }),
-    ])
+      })
 
-    // Calculate distance if user location is provided
-    let jobsWithDistance: JobWithCompany[] = jobs.map(job => ({
-      ...job,
-      distance: undefined as number | undefined,
-    }))
-
-    if (userLat !== undefined && userLng !== undefined) {
-      jobsWithDistance = jobs.map(job => {
+      // Calculate distance for all jobs
+      let allJobsWithDistance = allJobs.map(job => {
         let distance: number | undefined
         if (job.company.latitude && job.company.longitude) {
           distance = calculateDistance(
-            userLat,
-            userLng,
+            userLat!,
+            userLng!,
             job.company.latitude,
             job.company.longitude
           )
@@ -108,22 +103,59 @@ export async function GET(request: NextRequest) {
         return { ...job, distance }
       })
 
-      // Filter by distance if maxDistance is specified
+      // Filter by maxDistance if specified
       if (maxDistance !== undefined) {
-        jobsWithDistance = jobsWithDistance.filter(
+        allJobsWithDistance = allJobsWithDistance.filter(
           job => job.distance === undefined || job.distance <= maxDistance
         )
       }
 
-      // Sort by distance if requested
-      if (sortField === 'distance') {
-        jobsWithDistance.sort((a, b) => {
-          if (a.distance === undefined) return 1
-          if (b.distance === undefined) return -1
-          return sortOrder === 'asc'
-            ? a.distance - b.distance
-            : b.distance - a.distance
+      // Sort by distance
+      allJobsWithDistance.sort((a, b) => {
+        if (a.distance === undefined) return 1
+        if (b.distance === undefined) return -1
+        return sortOrder === 'asc'
+          ? a.distance - b.distance
+          : b.distance - a.distance
+      })
+
+      total = allJobsWithDistance.length
+      // Apply pagination after sorting
+      jobsWithDistance = allJobsWithDistance.slice(skip, skip + limit)
+    } else {
+      // Standard pagination for non-distance sorting
+      const [jobs, count] = await Promise.all([
+        prisma.job.findMany({
+          where,
+          include: { company: true },
+          orderBy,
+          skip,
+          take: limit,
+        }),
+        prisma.job.count({ where }),
+      ])
+
+      total = count
+
+      // Calculate distance if user location is provided (for display only)
+      if (userLat !== undefined && userLng !== undefined) {
+        jobsWithDistance = jobs.map(job => {
+          let distance: number | undefined
+          if (job.company.latitude && job.company.longitude) {
+            distance = calculateDistance(
+              userLat,
+              userLng,
+              job.company.latitude,
+              job.company.longitude
+            )
+          }
+          return { ...job, distance }
         })
+      } else {
+        jobsWithDistance = jobs.map(job => ({
+          ...job,
+          distance: undefined as number | undefined,
+        }))
       }
     }
 
