@@ -1,0 +1,465 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
+import { JobWithCompany, EmploymentType, JobStatus } from '@/types'
+import { format } from 'date-fns'
+import { ko } from 'date-fns/locale'
+import MapView from '@/components/MapView'
+import clsx from 'clsx'
+
+const employmentTypeLabels: Record<EmploymentType, string> = {
+  FULL_TIME: '정규직',
+  CONTRACT: '계약직',
+  PART_TIME: '파트타임',
+  INTERNSHIP: '인턴',
+  TEMPORARY: '임시직',
+  OTHER: '기타',
+}
+
+const statusLabels: Record<JobStatus, string> = {
+  ACTIVE: '모집중',
+  CLOSED: '마감',
+  EXPIRED: '기간만료',
+}
+
+export default function JobDetailPage() {
+  const params = useParams()
+  const jobId = params.id as string
+
+  const [job, setJob] = useState<JobWithCompany | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [showMap, setShowMap] = useState(false)
+
+  useEffect(() => {
+    const fetchJob = async () => {
+      try {
+        const response = await fetch(`/api/jobs/${jobId}`)
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('채용 공고를 찾을 수 없습니다.')
+          }
+          throw new Error('데이터를 불러오는데 실패했습니다.')
+        }
+        const data = await response.json()
+        setJob(data.job)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '오류가 발생했습니다.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchJob()
+  }, [jobId])
+
+  if (loading) {
+    return (
+      <div
+        className="max-w-4xl mx-auto px-4 py-12 flex items-center justify-center"
+        role="status"
+        aria-label="채용 상세 정보 로딩 중"
+      >
+        <svg
+          className="w-8 h-8 animate-spin text-primary-600"
+          fill="none"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        <span className="ml-2 text-gray-600">불러오는 중...</span>
+      </div>
+    )
+  }
+
+  if (error || !job) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <div
+          className="bg-red-50 border border-red-200 rounded-lg p-6 text-center"
+          role="alert"
+        >
+          <svg
+            className="w-12 h-12 mx-auto text-red-400 mb-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <p className="text-red-600 mb-4">{error || '채용 공고를 찾을 수 없습니다.'}</p>
+          <a href="/" className="btn btn-primary">
+            목록으로 돌아가기
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  const hasLocation = job.company.latitude && job.company.longitude
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Back button */}
+      <nav className="mb-6" aria-label="브레드크럼">
+        <a
+          href="/"
+          className="inline-flex items-center text-primary-600 hover:text-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600 rounded"
+        >
+          <svg
+            className="w-5 h-5 mr-1"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          목록으로 돌아가기
+        </a>
+      </nav>
+
+      {/* Job header */}
+      <header className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              {job.title}
+            </h1>
+            <p className="text-xl text-gray-700">{job.company.name}</p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <span
+              className={clsx(
+                'badge',
+                job.status === 'ACTIVE'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-200 text-gray-600'
+              )}
+            >
+              {statusLabels[job.status]}
+            </span>
+            {job.isRemoteAvailable && (
+              <span className="badge badge-remote">
+                <svg
+                  className="w-3 h-3"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                  aria-hidden="true"
+                >
+                  <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                </svg>
+                재택근무 가능
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Quick info */}
+        <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <dt className="text-gray-500">고용 형태</dt>
+            <dd className="font-medium text-gray-900">
+              {employmentTypeLabels[job.employmentType]}
+            </dd>
+          </div>
+          {job.category && (
+            <div>
+              <dt className="text-gray-500">직무</dt>
+              <dd className="font-medium text-gray-900">{job.category}</dd>
+            </div>
+          )}
+          {job.salary && (
+            <div>
+              <dt className="text-gray-500">급여</dt>
+              <dd className="font-medium text-gray-900">{job.salary}</dd>
+            </div>
+          )}
+          {job.deadline && (
+            <div>
+              <dt className="text-gray-500">마감일</dt>
+              <dd className="font-medium text-gray-900">
+                {format(new Date(job.deadline), 'yyyy년 M월 d일', { locale: ko })}
+              </dd>
+            </div>
+          )}
+        </dl>
+      </header>
+
+      {/* Job description */}
+      {job.description && (
+        <section className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            채용 상세 정보
+          </h2>
+          <div className="prose prose-gray max-w-none">
+            <p className="whitespace-pre-wrap text-gray-700">{job.description}</p>
+          </div>
+        </section>
+      )}
+
+      {/* Company info & location */}
+      <section className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          기업 정보
+        </h2>
+
+        <dl className="space-y-3">
+          <div className="flex items-start gap-3">
+            <dt className="sr-only">회사명</dt>
+            <svg
+              className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              />
+            </svg>
+            <dd className="text-gray-700">{job.company.name}</dd>
+          </div>
+
+          {job.company.address && (
+            <div className="flex items-start gap-3">
+              <dt className="sr-only">주소</dt>
+              <svg
+                className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <dd className="text-gray-700">{job.company.address}</dd>
+            </div>
+          )}
+
+          {job.company.website && (
+            <div className="flex items-start gap-3">
+              <dt className="sr-only">웹사이트</dt>
+              <svg
+                className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                />
+              </svg>
+              <dd>
+                <a
+                  href={job.company.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:text-primary-700 underline"
+                >
+                  {job.company.website}
+                </a>
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        {/* Map toggle */}
+        {hasLocation && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowMap(!showMap)}
+              className="btn btn-secondary"
+              aria-expanded={showMap}
+              aria-controls="company-map"
+            >
+              <svg
+                className="w-5 h-5 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                />
+              </svg>
+              {showMap ? '지도 숨기기' : '지도 보기'}
+            </button>
+
+            {showMap && (
+              <div
+                id="company-map"
+                className="mt-4 h-[300px] rounded-lg overflow-hidden border border-gray-200"
+              >
+                <MapView
+                  markers={[
+                    {
+                      id: job.id,
+                      lat: job.company.latitude!,
+                      lng: job.company.longitude!,
+                      title: job.title,
+                      company: job.company.name,
+                    },
+                  ]}
+                  center={{
+                    lat: job.company.latitude!,
+                    lng: job.company.longitude!,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Apply section */}
+      <section
+        className="bg-white rounded-lg border border-gray-200 p-6"
+        aria-labelledby="apply-heading"
+      >
+        <h2
+          id="apply-heading"
+          className="text-lg font-semibold text-gray-900 mb-4"
+        >
+          지원하기
+        </h2>
+
+        <div className="flex flex-wrap gap-3">
+          {job.applicationPhone && (
+            <a
+              href={`tel:${job.applicationPhone}`}
+              className="btn btn-outline flex-1 min-w-[140px] justify-center"
+              aria-label={`전화로 지원하기: ${job.applicationPhone}`}
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                />
+              </svg>
+              전화 문의
+              <span className="sr-only">: {job.applicationPhone}</span>
+            </a>
+          )}
+
+          {job.applicationEmail && (
+            <a
+              href={`mailto:${job.applicationEmail}?subject=[지원문의] ${job.title}`}
+              className="btn btn-outline flex-1 min-w-[140px] justify-center"
+              aria-label={`이메일로 지원하기: ${job.applicationEmail}`}
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              이메일 문의
+            </a>
+          )}
+
+          {job.applicationUrl && (
+            <a
+              href={job.applicationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary flex-1 min-w-[140px] justify-center"
+              aria-label="외부 채용 페이지에서 지원하기 (새 창에서 열림)"
+            >
+              외부 페이지에서 지원
+              <svg
+                className="w-5 h-5 ml-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+            </a>
+          )}
+        </div>
+
+        {!job.applicationPhone && !job.applicationEmail && !job.applicationUrl && (
+          <p className="text-gray-500 text-center py-4">
+            지원 방법 정보가 없습니다. 기업에 직접 문의해주세요.
+          </p>
+        )}
+      </section>
+
+      {/* Last updated */}
+      <p className="text-sm text-gray-500 text-center mt-6">
+        마지막 업데이트:{' '}
+        {format(new Date(job.updatedAt), 'yyyy년 M월 d일 HH:mm', { locale: ko })}
+      </p>
+    </div>
+  )
+}

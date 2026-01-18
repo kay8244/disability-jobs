@@ -1,0 +1,17 @@
+# Database initialization Dockerfile
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install OpenSSL
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+COPY package.json ./
+RUN npm install
+
+# Copy prisma schema
+COPY prisma ./prisma
+
+# Generate Prisma Client and push schema
+CMD ["sh", "-c", "npx prisma db push --skip-generate && echo 'Database initialized successfully!'"]

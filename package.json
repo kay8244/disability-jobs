@@ -1,0 +1,43 @@
+{
+  "name": "disability-jobs",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "npx ts-node prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "sync": "npx ts-node src/scheduler/sync.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "next": "14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "node-cron": "^3.0.3",
+    "axios": "^1.6.2",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1",
+    "clsx": "^2.0.0",
+    "date-fns": "^3.0.6"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.8",
+    "@types/node": "^20.10.5",
+    "@types/node-cron": "^3.0.11",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "14.0.4",
+    "postcss": "^8.4.32",
+    "prisma": "5.22.0",
+    "tailwindcss": "^3.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

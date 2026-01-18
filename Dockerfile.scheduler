@@ -1,0 +1,26 @@
+# Scheduler Dockerfile
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install OpenSSL
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies (including dev for TypeScript)
+COPY package.json ./
+RUN npm install
+
+# Copy scheduler and shared code
+COPY prisma ./prisma
+COPY src/lib ./src/lib
+COPY src/scheduler ./src/scheduler
+COPY tsconfig.json ./
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Use tsx to run TypeScript directly
+RUN npm install -g tsx
+
+# Wait for db and run scheduler
+CMD ["sh", "-c", "sleep 10 && tsx src/scheduler/index.ts"]

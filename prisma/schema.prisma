@@ -1,0 +1,140 @@
+// Prisma Schema for Disability Jobs Platform
+// MVP Phase 1: Job listings with company information
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Company information
+model Company {
+  id            String   @id @default(cuid())
+  externalId    String?  @unique // ID from data.go.kr API
+  name          String
+  businessNumber String? // Business registration number
+  industry      String?  // Industry category
+  employeeCount Int?     // Number of employees
+
+  // Address information
+  address       String?
+  addressDetail String?
+  city          String?  // 시/도
+  district      String?  // 구/군
+
+  // Geocoded location
+  latitude      Float?
+  longitude     Float?
+  geocodeStatus GeoCodeStatus @default(PENDING)
+
+  // Contact information
+  phone         String?
+  email         String?
+  website       String?
+
+  // Metadata
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  jobs          Job[]
+
+  @@index([city, district])
+  @@index([latitude, longitude])
+}
+
+// Job posting information
+model Job {
+  id            String   @id @default(cuid())
+  externalId    String?  @unique // ID from data.go.kr API
+
+  // Basic info
+  title         String
+  description   String?  @db.Text
+
+  // Job details
+  category      String?  // Job category (직무 카테고리)
+  employmentType EmploymentType @default(FULL_TIME)
+  salary        String?  // Salary information (text, as format varies)
+  salaryMin     Int?     // Minimum salary (for filtering)
+  salaryMax     Int?     // Maximum salary (for filtering)
+
+  // Work conditions
+  isRemoteAvailable Boolean @default(false) // 재택 가능 여부
+  workLocation  String?  // Work location if different from company
+  workHours     String?  // Working hours description
+
+  // Dates
+  postedAt      DateTime?
+  deadline      DateTime? // Application deadline
+
+  // Application info
+  applicationUrl String?  // External application URL
+  applicationEmail String?
+  applicationPhone String?
+  applicationMethod String? // How to apply (description)
+
+  // Status
+  status        JobStatus @default(ACTIVE)
+
+  // Metadata
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([employmentType])
+  @@index([isRemoteAvailable])
+  @@index([deadline])
+  @@index([status])
+  @@index([companyId])
+}
+
+// Sync log for tracking data pipeline
+model SyncLog {
+  id          String   @id @default(cuid())
+  source      String   // API source identifier
+  status      SyncStatus
+  recordsTotal Int     @default(0)
+  recordsCreated Int   @default(0)
+  recordsUpdated Int   @default(0)
+  recordsFailed Int    @default(0)
+  errorMessage String? @db.Text
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+}
+
+// Enums
+enum EmploymentType {
+  FULL_TIME    // 정규직
+  CONTRACT     // 계약직
+  PART_TIME    // 파트타임
+  INTERNSHIP   // 인턴
+  TEMPORARY    // 임시직
+  OTHER        // 기타
+}
+
+enum JobStatus {
+  ACTIVE       // 모집중
+  CLOSED       // 마감
+  EXPIRED      // 기간만료
+}
+
+enum GeoCodeStatus {
+  PENDING      // Not yet geocoded
+  SUCCESS      // Successfully geocoded
+  FAILED       // Geocoding failed
+  NOT_FOUND    // Address not found
+}
+
+enum SyncStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
