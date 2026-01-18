@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { geocodeAddress } from '@/lib/geocoding'
 import { GeoCodeStatus } from '@prisma/client'
@@ -6,9 +6,25 @@ import { GeoCodeStatus } from '@prisma/client'
 /**
  * POST /api/geocode
  * Batch geocode companies without coordinates
+ * Use ?reset=true to re-geocode all companies
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams
+    const reset = searchParams.get('reset') === 'true'
+
+    // If reset, clear all coordinates first
+    if (reset) {
+      await prisma.company.updateMany({
+        data: {
+          latitude: null,
+          longitude: null,
+          geocodeStatus: GeoCodeStatus.PENDING,
+        },
+      })
+      console.log('Reset all company coordinates')
+    }
+
     // Find companies without coordinates
     const companies = await prisma.company.findMany({
       where: {
