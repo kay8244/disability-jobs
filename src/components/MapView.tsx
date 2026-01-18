@@ -6,6 +6,7 @@ import { MapMarker } from '@/types'
 interface MapViewProps {
   markers: MapMarker[]
   center?: { lat: number; lng: number }
+  userLocation?: { lat: number; lng: number } | null
   onMarkerClick?: (markerId: string) => void
 }
 
@@ -13,7 +14,7 @@ interface MapViewProps {
  * MapView component using Leaflet + OpenStreetMap
  * Accessibility note: Map is optional and all functionality works without it
  */
-export default function MapView({ markers, center, onMarkerClick }: MapViewProps) {
+export default function MapView({ markers, center, userLocation, onMarkerClick }: MapViewProps) {
   const [isClient, setIsClient] = useState(false)
   const [MapComponent, setMapComponent] = useState<React.ComponentType<MapViewProps> | null>(null)
 
@@ -59,5 +60,5 @@ export default function MapView({ markers, center, onMarkerClick }: MapViewProps
     )
   }
 
-  return <MapComponent markers={markers} center={center} onMarkerClick={onMarkerClick} />
+  return <MapComponent markers={markers} center={center} userLocation={userLocation} onMarkerClick={onMarkerClick} />
 }

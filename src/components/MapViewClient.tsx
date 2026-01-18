@@ -8,6 +8,7 @@ import { MapMarker } from '@/types'
 interface MapViewClientProps {
   markers: MapMarker[]
   center?: { lat: number; lng: number }
+  userLocation?: { lat: number; lng: number } | null
   onMarkerClick?: (markerId: string) => void
 }
 
@@ -15,7 +16,7 @@ interface MapViewClientProps {
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }
 const DEFAULT_ZOOM = 11
 
-// Custom marker icon
+// Custom marker icon for companies
 const markerIcon = L.divIcon({
   className: 'custom-marker',
   html: `<div style="
@@ -30,14 +31,31 @@ const markerIcon = L.divIcon({
   iconAnchor: [12, 12],
 })
 
+// User location marker icon
+const userLocationIcon = L.divIcon({
+  className: 'user-location-marker',
+  html: `<div style="
+    background-color: #ef4444;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 4px solid white;
+    box-shadow: 0 0 0 3px #ef4444, 0 2px 8px rgba(0,0,0,0.4);
+  "></div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+})
+
 export default function MapViewClient({
   markers,
   center,
+  userLocation,
   onMarkerClick,
 }: MapViewClientProps) {
   const mapRef = useRef<L.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const markersRef = useRef<L.Marker[]>([])
+  const userMarkerRef = useRef<L.Marker | null>(null)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -71,6 +89,34 @@ export default function MapViewClient({
       mapRef.current.setView([center.lat, center.lng], DEFAULT_ZOOM)
     }
   }, [center])
+
+  // Add/update user location marker
+  useEffect(() => {
+    if (!mapRef.current) return
+
+    // Remove existing user marker
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove()
+      userMarkerRef.current = null
+    }
+
+    // Add new user location marker
+    if (userLocation) {
+      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
+        icon: userLocationIcon,
+        title: '내 위치',
+        zIndexOffset: 1000, // Show above other markers
+      })
+
+      userMarkerRef.current.bindPopup(`
+        <div style="text-align: center;">
+          <strong style="color: #ef4444;">📍 내 위치</strong>
+        </div>
+      `)
+
+      userMarkerRef.current.addTo(mapRef.current)
+    }
+  }, [userLocation])
 
   // Update markers
   useEffect(() => {
@@ -107,14 +153,17 @@ export default function MapViewClient({
       markersRef.current.push(marker)
     })
 
-    // Fit bounds if there are markers
-    if (markers.length > 0) {
-      const bounds = L.latLngBounds(
-        markers.map((m) => [m.lat, m.lng] as L.LatLngTuple)
-      )
+    // Fit bounds if there are markers or user location
+    const allPoints: L.LatLngTuple[] = markers.map((m) => [m.lat, m.lng] as L.LatLngTuple)
+    if (userLocation) {
+      allPoints.push([userLocation.lat, userLocation.lng])
+    }
+
+    if (allPoints.length > 0) {
+      const bounds = L.latLngBounds(allPoints)
       mapRef.current.fitBounds(bounds, { padding: [50, 50] })
     }
-  }, [markers, onMarkerClick])
+  }, [markers, userLocation, onMarkerClick])
 
   return (
     <div

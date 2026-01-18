@@ -49,6 +49,31 @@ export default function HomePage() {
   // Map toggle state
   const [showMap, setShowMap] = useState(false)
 
+  // Auto-request location on mount
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          })
+          setIsLocationEnabled(true)
+          // Change to distance sort when location is available
+          setFilters(prev => ({
+            ...prev,
+            sortField: 'distance',
+            sortOrder: 'asc',
+          }))
+        },
+        (error) => {
+          console.log('Geolocation not available or denied:', error.message)
+        },
+        { timeout: 10000, maximumAge: 300000 }
+      )
+    }
+  }, [])
+
   // Fetch jobs
   const fetchJobs = useCallback(async () => {
     setLoading(true)
@@ -326,6 +351,7 @@ export default function HomePage() {
             <MapView
               markers={mapMarkers}
               center={userLocation || undefined}
+              userLocation={userLocation}
               onMarkerClick={handleMarkerClick}
             />
           </div>

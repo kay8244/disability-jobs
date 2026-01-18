@@ -11,6 +11,54 @@ interface GeocodingResult {
   formattedAddress?: string
 }
 
+// Korean city center coordinates for fallback geocoding
+const KOREAN_CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  '서울특별시': { lat: 37.5665, lng: 126.978 },
+  '서울시': { lat: 37.5665, lng: 126.978 },
+  '서울': { lat: 37.5665, lng: 126.978 },
+  '부산광역시': { lat: 35.1796, lng: 129.0756 },
+  '부산시': { lat: 35.1796, lng: 129.0756 },
+  '부산': { lat: 35.1796, lng: 129.0756 },
+  '대구광역시': { lat: 35.8714, lng: 128.6014 },
+  '대구시': { lat: 35.8714, lng: 128.6014 },
+  '대구': { lat: 35.8714, lng: 128.6014 },
+  '인천광역시': { lat: 37.4563, lng: 126.7052 },
+  '인천시': { lat: 37.4563, lng: 126.7052 },
+  '인천': { lat: 37.4563, lng: 126.7052 },
+  '광주광역시': { lat: 35.1595, lng: 126.8526 },
+  '광주시': { lat: 35.1595, lng: 126.8526 },
+  '광주': { lat: 35.1595, lng: 126.8526 },
+  '대전광역시': { lat: 36.3504, lng: 127.3845 },
+  '대전시': { lat: 36.3504, lng: 127.3845 },
+  '대전': { lat: 36.3504, lng: 127.3845 },
+  '울산광역시': { lat: 35.5384, lng: 129.3114 },
+  '울산시': { lat: 35.5384, lng: 129.3114 },
+  '울산': { lat: 35.5384, lng: 129.3114 },
+  '세종특별자치시': { lat: 36.4800, lng: 127.2890 },
+  '세종시': { lat: 36.4800, lng: 127.2890 },
+  '세종': { lat: 36.4800, lng: 127.2890 },
+  '경기도': { lat: 37.4138, lng: 127.5183 },
+  '경기': { lat: 37.4138, lng: 127.5183 },
+  '강원특별자치도': { lat: 37.8228, lng: 128.1555 },
+  '강원도': { lat: 37.8228, lng: 128.1555 },
+  '강원': { lat: 37.8228, lng: 128.1555 },
+  '충청북도': { lat: 36.6357, lng: 127.4917 },
+  '충북': { lat: 36.6357, lng: 127.4917 },
+  '충청남도': { lat: 36.6588, lng: 126.6728 },
+  '충남': { lat: 36.6588, lng: 126.6728 },
+  '전라북도': { lat: 35.8203, lng: 127.1089 },
+  '전북': { lat: 35.8203, lng: 127.1089 },
+  '전라남도': { lat: 34.8161, lng: 126.4629 },
+  '전남': { lat: 34.8161, lng: 126.4629 },
+  '경상북도': { lat: 36.5760, lng: 128.5056 },
+  '경북': { lat: 36.5760, lng: 128.5056 },
+  '경상남도': { lat: 35.4606, lng: 128.2132 },
+  '경남': { lat: 35.4606, lng: 128.2132 },
+  '제주특별자치도': { lat: 33.4996, lng: 126.5312 },
+  '제주도': { lat: 33.4996, lng: 126.5312 },
+  '제주': { lat: 33.4996, lng: 126.5312 },
+}
+
 interface KakaoAddressResponse {
   documents: Array<{
     address_name: string
@@ -158,8 +206,26 @@ async function geocodeWithNominatim(address: string): Promise<GeocodingResult | 
 }
 
 /**
+ * Get city-level coordinates from address as fallback
+ */
+function getCityCoordinates(address: string): GeocodingResult | null {
+  for (const [city, coords] of Object.entries(KOREAN_CITY_COORDINATES)) {
+    if (address.includes(city)) {
+      // Add small random offset to prevent markers from stacking
+      const offset = () => (Math.random() - 0.5) * 0.02
+      return {
+        latitude: coords.lat + offset(),
+        longitude: coords.lng + offset(),
+        formattedAddress: city,
+      }
+    }
+  }
+  return null
+}
+
+/**
  * Geocode an address using available services
- * Tries Kakao first (if configured), falls back to Nominatim
+ * Tries Kakao first (if configured), falls back to Nominatim, then city-level
  */
 export async function geocodeAddress(address: string): Promise<GeocodingResult | null> {
   if (!address || address.trim().length === 0) {
@@ -172,12 +238,19 @@ export async function geocodeAddress(address: string): Promise<GeocodingResult |
     return kakaoResult
   }
 
-  // Wait 1 second before trying Nominatim (rate limiting)
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  // Try Nominatim with rate limiting
+  try {
+    await new Promise(resolve => setTimeout(resolve, 500))
+    const nominatimResult = await geocodeWithNominatim(address)
+    if (nominatimResult) {
+      return nominatimResult
+    }
+  } catch (error) {
+    console.log('Nominatim failed, using city-level fallback')
+  }
 
-  // Fallback to Nominatim
-  const nominatimResult = await geocodeWithNominatim(address)
-  return nominatimResult
+  // Final fallback: use city-level coordinates
+  return getCityCoordinates(address)
 }
 
 /**
