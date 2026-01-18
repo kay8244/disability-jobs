@@ -60,8 +60,8 @@ export class DataGoKrClient {
     if (!apiKey) {
       throw new Error('DATA_GO_KR_API_KEY environment variable is required')
     }
-    // Keep encoded key as-is for data.go.kr
-    this.apiKey = apiKey
+    // Encode the API key for URL use
+    this.apiKey = encodeURIComponent(apiKey)
   }
 
   /**
