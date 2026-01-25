@@ -11,7 +11,7 @@ interface MapViewProps {
 }
 
 /**
- * MapView component using Leaflet + OpenStreetMap
+ * MapView component using Kakao Maps
  * Accessibility note: Map is optional and all functionality works without it
  */
 export default function MapView({ markers, center, userLocation, onMarkerClick }: MapViewProps) {

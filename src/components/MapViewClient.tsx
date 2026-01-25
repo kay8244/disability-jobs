@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { useEffect, useRef, useState } from 'react'
 import { MapMarker } from '@/types'
 
 interface MapViewClientProps {
@@ -14,37 +12,7 @@ interface MapViewClientProps {
 
 // Default center: Seoul City Hall
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }
-const DEFAULT_ZOOM = 11
-
-// Custom marker icon for companies
-const markerIcon = L.divIcon({
-  className: 'custom-marker',
-  html: `<div style="
-    background-color: #2563eb;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 3px solid white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-  "></div>`,
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
-})
-
-// User location marker icon
-const userLocationIcon = L.divIcon({
-  className: 'user-location-marker',
-  html: `<div style="
-    background-color: #ef4444;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    border: 4px solid white;
-    box-shadow: 0 0 0 3px #ef4444, 0 2px 8px rgba(0,0,0,0.4);
-  "></div>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-})
+const DEFAULT_ZOOM = 7
 
 export default function MapViewClient({
   markers,
@@ -52,126 +20,227 @@ export default function MapViewClient({
   userLocation,
   onMarkerClick,
 }: MapViewClientProps) {
-  const mapRef = useRef<L.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const markersRef = useRef<L.Marker[]>([])
-  const userMarkerRef = useRef<L.Marker | null>(null)
+  const mapRef = useRef<kakao.maps.Map | null>(null)
+  const markersRef = useRef<kakao.maps.Marker[]>([])
+  const overlaysRef = useRef<kakao.maps.CustomOverlay[]>([])
+  const userMarkerRef = useRef<kakao.maps.Marker | null>(null)
+  const [isMapLoaded, setIsMapLoaded] = useState(false)
 
+  // Initialize Kakao Maps
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return
+    if (!containerRef.current) return
 
-    // Initialize map
-    const mapCenter = center || DEFAULT_CENTER
-    mapRef.current = L.map(containerRef.current, {
-      center: [mapCenter.lat, mapCenter.lng],
-      zoom: DEFAULT_ZOOM,
-      zoomControl: true,
-    })
+    const initializeMap = () => {
+      if (!containerRef.current || mapRef.current) return
 
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(mapRef.current)
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove()
-        mapRef.current = null
+      const mapCenter = center || DEFAULT_CENTER
+      const options: kakao.maps.MapOptions = {
+        center: new kakao.maps.LatLng(mapCenter.lat, mapCenter.lng),
+        level: DEFAULT_ZOOM,
       }
-    }
-  }, [])
 
-  // Update center when it changes
-  useEffect(() => {
-    if (mapRef.current && center) {
-      mapRef.current.setView([center.lat, center.lng], DEFAULT_ZOOM)
+      mapRef.current = new kakao.maps.Map(containerRef.current, options)
+      setIsMapLoaded(true)
+    }
+
+    // Check if kakao maps is loaded
+    if (typeof window !== 'undefined' && window.kakao && window.kakao.maps) {
+      // Use kakao.maps.load to ensure SDK is ready
+      window.kakao.maps.load(initializeMap)
+    } else {
+      // Wait for script to load
+      const checkKakao = setInterval(() => {
+        if (window.kakao && window.kakao.maps) {
+          clearInterval(checkKakao)
+          window.kakao.maps.load(initializeMap)
+        }
+      }, 100)
+
+      // Cleanup interval after 10 seconds
+      setTimeout(() => clearInterval(checkKakao), 10000)
+
+      return () => clearInterval(checkKakao)
     }
   }, [center])
 
+  // Update center when it changes
+  useEffect(() => {
+    if (mapRef.current && center && isMapLoaded) {
+      const newCenter = new kakao.maps.LatLng(center.lat, center.lng)
+      mapRef.current.setCenter(newCenter)
+    }
+  }, [center, isMapLoaded])
+
   // Add/update user location marker
   useEffect(() => {
-    if (!mapRef.current) return
+    if (!mapRef.current || !isMapLoaded) return
 
     // Remove existing user marker
     if (userMarkerRef.current) {
-      userMarkerRef.current.remove()
+      userMarkerRef.current.setMap(null)
       userMarkerRef.current = null
     }
 
     // Add new user location marker
     if (userLocation) {
-      userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
-        icon: userLocationIcon,
-        title: '내 위치',
-        zIndexOffset: 1000, // Show above other markers
-      })
+      const position = new kakao.maps.LatLng(userLocation.lat, userLocation.lng)
 
-      userMarkerRef.current.bindPopup(`
-        <div style="text-align: center;">
-          <strong style="color: #ef4444;">📍 내 위치</strong>
-        </div>
+      // Create user location marker image
+      const imageSrc = 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="10" fill="#ef4444" stroke="white" stroke-width="4"/>
+          <circle cx="14" cy="14" r="14" fill="none" stroke="#ef4444" stroke-width="3" opacity="0.3"/>
+        </svg>
       `)
+      const imageSize = new kakao.maps.Size(28, 28)
+      const imageOption = { offset: new kakao.maps.Point(14, 14) }
+      const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption)
 
-      userMarkerRef.current.addTo(mapRef.current)
+      userMarkerRef.current = new kakao.maps.Marker({
+        position,
+        map: mapRef.current,
+        title: '내 위치',
+        image: markerImage,
+        zIndex: 10,
+      })
     }
-  }, [userLocation])
+  }, [userLocation, isMapLoaded])
 
   // Update markers
   useEffect(() => {
-    if (!mapRef.current) return
+    if (!mapRef.current || !isMapLoaded) return
 
-    // Clear existing markers
-    markersRef.current.forEach((marker) => marker.remove())
+    // Clear existing markers and overlays
+    markersRef.current.forEach((marker) => marker.setMap(null))
     markersRef.current = []
+    overlaysRef.current.forEach((overlay) => overlay.setMap(null))
+    overlaysRef.current = []
+
+    // Create marker image for companies
+    const imageSrc = 'data:image/svg+xml;base64,' + btoa(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="35" viewBox="0 0 24 35">
+        <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 23 12 23s12-14 12-23C24 5.4 18.6 0 12 0z" fill="#2563eb"/>
+        <circle cx="12" cy="12" r="6" fill="white"/>
+      </svg>
+    `)
+    const imageSize = new kakao.maps.Size(24, 35)
+    const imageOption = { offset: new kakao.maps.Point(12, 35) }
+    const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption)
 
     // Add new markers
+    const bounds = new kakao.maps.LatLngBounds()
+    let hasMarkers = false
+
     markers.forEach((markerData) => {
-      const marker = L.marker([markerData.lat, markerData.lng], {
-        icon: markerIcon,
+      const position = new kakao.maps.LatLng(markerData.lat, markerData.lng)
+      bounds.extend(position)
+      hasMarkers = true
+
+      const marker = new kakao.maps.Marker({
+        position,
+        map: mapRef.current!,
         title: markerData.title,
+        image: markerImage,
       })
 
-      // Create popup content
-      const popupContent = `
-        <div style="min-width: 150px;">
-          <strong style="font-size: 14px;">${markerData.company}</strong>
-          <p style="margin: 4px 0 0; font-size: 12px; color: #4b5563;">
+      // Create custom overlay for popup
+      const overlayContent = document.createElement('div')
+      overlayContent.innerHTML = `
+        <div style="
+          background: white;
+          padding: 12px 16px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          min-width: 150px;
+          max-width: 250px;
+          position: relative;
+        ">
+          <button style="
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+          " class="close-overlay">&times;</button>
+          <strong style="font-size: 14px; color: #1f2937; display: block; margin-bottom: 4px; padding-right: 20px;">
+            ${markerData.company}
+          </strong>
+          <p style="margin: 0; font-size: 12px; color: #4b5563;">
             ${markerData.title}
           </p>
         </div>
+        <div style="
+          width: 0;
+          height: 0;
+          border-left: 8px solid transparent;
+          border-right: 8px solid transparent;
+          border-top: 8px solid white;
+          margin: 0 auto;
+          filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
+        "></div>
       `
 
-      marker.bindPopup(popupContent)
+      const overlay = new kakao.maps.CustomOverlay({
+        content: overlayContent,
+        position,
+        xAnchor: 0.5,
+        yAnchor: 1.3,
+        zIndex: 5,
+      })
 
-      marker.on('click', () => {
+      overlaysRef.current.push(overlay)
+
+      // Close button handler
+      const closeButton = overlayContent.querySelector('.close-overlay')
+      if (closeButton) {
+        closeButton.addEventListener('click', (e) => {
+          e.stopPropagation()
+          overlay.setMap(null)
+        })
+      }
+
+      // Marker click event
+      kakao.maps.event.addListener(marker, 'click', () => {
+        // Close all other overlays
+        overlaysRef.current.forEach((o) => o.setMap(null))
+        // Show this overlay
+        overlay.setMap(mapRef.current)
+        // Trigger callback
         onMarkerClick?.(markerData.id)
       })
 
-      marker.addTo(mapRef.current!)
       markersRef.current.push(marker)
     })
 
-    // Fit bounds if there are markers or user location
-    const allPoints: L.LatLngTuple[] = markers.map((m) => [m.lat, m.lng] as L.LatLngTuple)
+    // Include user location in bounds
     if (userLocation) {
-      allPoints.push([userLocation.lat, userLocation.lng])
+      bounds.extend(new kakao.maps.LatLng(userLocation.lat, userLocation.lng))
+      hasMarkers = true
     }
 
-    if (allPoints.length > 0) {
-      const bounds = L.latLngBounds(allPoints)
-      mapRef.current.fitBounds(bounds, { padding: [50, 50] })
+    // Fit bounds if there are markers
+    if (hasMarkers && mapRef.current) {
+      mapRef.current.setBounds(bounds, 50, 50, 50, 50)
     }
-  }, [markers, userLocation, onMarkerClick])
+  }, [markers, userLocation, onMarkerClick, isMapLoaded])
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full w-full"
-      role="application"
-      aria-label="채용 기업 위치 지도"
-    >
+    <div className="relative h-full w-full">
+      <div
+        ref={containerRef}
+        className="h-full w-full"
+        role="application"
+        aria-label="채용 기업 위치 지도"
+      />
+      {!isMapLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <div className="text-gray-500">지도를 불러오는 중...</div>
+        </div>
+      )}
       {/* Screen reader description */}
       <span className="sr-only">
         지도에 {markers.length}개의 채용 기업 위치가 표시되어 있습니다.

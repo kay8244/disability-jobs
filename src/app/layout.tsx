@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -18,6 +19,12 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${inter.className} bg-gray-50 text-gray-900 antialiased`}>
+        {/* Kakao Maps SDK */}
+        <Script
+          src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_JS_KEY}&autoload=false`}
+          strategy="beforeInteractive"
+        />
+
         {/* Skip to main content link for keyboard users */}
         <a href="#main-content" className="skip-link">
           본문으로 바로가기
