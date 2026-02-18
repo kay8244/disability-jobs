@@ -62,6 +62,17 @@ export interface JobDetailResponse {
   job: JobWithCompany
 }
 
+// Filter state for job list UI
+export interface FilterState {
+  maxDistance?: number
+  isRemoteAvailable: boolean
+  category?: string
+  employmentType?: EmploymentType
+  city?: string
+  sortField: string
+  sortOrder: 'asc' | 'desc'
+}
+
 // Map data for display
 export interface MapMarker {
   id: string

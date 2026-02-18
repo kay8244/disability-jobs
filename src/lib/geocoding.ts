@@ -2,7 +2,7 @@ import axios from 'axios'
 
 /**
  * Geocoding service for converting Korean addresses to coordinates
- * Supports Kakao Local API (primary) and OSM Nominatim (fallback)
+ * Supports Naver Geocoding API (primary) and OSM Nominatim (fallback)
  */
 
 interface GeocodingResult {
@@ -59,16 +59,17 @@ const KOREAN_CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
   '제주': { lat: 33.4996, lng: 126.5312 },
 }
 
-interface KakaoAddressResponse {
-  documents: Array<{
-    address_name: string
+interface NaverGeocodeResponse {
+  status: string
+  meta: {
+    totalCount: number
+  }
+  addresses: Array<{
+    roadAddress: string
+    jibunAddress: string
     x: string // longitude
     y: string // latitude
-    address_type: string
   }>
-  meta: {
-    total_count: number
-  }
 }
 
 interface NominatimResponse {
@@ -128,39 +129,41 @@ export function parseKoreanAddress(address: string): {
 }
 
 /**
- * Geocode using Kakao Local API
+ * Geocode using Naver Geocoding API
  */
-async function geocodeWithKakao(address: string): Promise<GeocodingResult | null> {
-  const apiKey = process.env.KAKAO_REST_API_KEY
-  if (!apiKey) {
-    console.log('Kakao API key not configured, skipping Kakao geocoding')
+async function geocodeWithNaver(address: string): Promise<GeocodingResult | null> {
+  const clientId = process.env.NEXT_PUBLIC_NAVER_CLIENT_ID
+  const clientSecret = process.env.NAVER_CLIENT_SECRET
+  if (!clientId || !clientSecret) {
+    console.log('Naver API keys not configured, skipping Naver geocoding')
     return null
   }
 
   try {
-    const response = await axios.get<KakaoAddressResponse>(
-      'https://dapi.kakao.com/v2/local/search/address.json',
+    const response = await axios.get<NaverGeocodeResponse>(
+      'https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode',
       {
         params: { query: address },
         headers: {
-          Authorization: `KakaoAK ${apiKey}`,
+          'X-NCP-APIGW-API-KEY-ID': clientId,
+          'X-NCP-APIGW-API-KEY': clientSecret,
         },
         timeout: 10000,
       }
     )
 
-    if (response.data.documents.length > 0) {
-      const doc = response.data.documents[0]
+    if (response.data.addresses && response.data.addresses.length > 0) {
+      const addr = response.data.addresses[0]
       return {
-        latitude: parseFloat(doc.y),
-        longitude: parseFloat(doc.x),
-        formattedAddress: doc.address_name,
+        latitude: parseFloat(addr.y),
+        longitude: parseFloat(addr.x),
+        formattedAddress: addr.roadAddress || addr.jibunAddress,
       }
     }
 
     return null
   } catch (error) {
-    console.error('Kakao geocoding failed:', error)
+    console.error('Naver geocoding failed:', error)
     return null
   }
 }
@@ -225,17 +228,17 @@ function getCityCoordinates(address: string): GeocodingResult | null {
 
 /**
  * Geocode an address using available services
- * Tries Kakao first (if configured), falls back to Nominatim, then city-level
+ * Tries Naver first (if configured), falls back to Nominatim, then city-level
  */
 export async function geocodeAddress(address: string): Promise<GeocodingResult | null> {
   if (!address || address.trim().length === 0) {
     return null
   }
 
-  // Try Kakao first (faster and more accurate for Korean addresses)
-  const kakaoResult = await geocodeWithKakao(address)
-  if (kakaoResult) {
-    return kakaoResult
+  // Try Naver first (faster and more accurate for Korean addresses)
+  const naverResult = await geocodeWithNaver(address)
+  if (naverResult) {
+    return naverResult
   }
 
   // Try Nominatim with rate limiting

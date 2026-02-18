@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma'
 import { DataGoKrClient, normalizeJobData, RawJobData } from '../lib/data-go-kr'
 import { geocodeAddress, parseKoreanAddress } from '../lib/geocoding'
+import { invalidateFilterCache } from '../lib/jobs'
 import { GeoCodeStatus, SyncStatus } from '@prisma/client'
 
 /**
@@ -65,6 +66,9 @@ export async function syncJobsFromDataGoKr(): Promise<{
         completedAt: new Date(),
       },
     })
+
+    // Invalidate filter cache so next request picks up new data
+    invalidateFilterCache()
 
     console.log('Sync completed:', stats)
     return { success: true, stats }

@@ -1,8 +1,10 @@
 'use client'
 
-import { JobWithCompany, EmploymentType } from '@/types'
+import { memo, useMemo, useCallback } from 'react'
+import { JobWithCompany } from '@/types'
 import { format, isPast, differenceInDays } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import { employmentTypeLabels } from '@/lib/constants'
 import clsx from 'clsx'
 
 interface JobCardProps {
@@ -10,32 +12,24 @@ interface JobCardProps {
   onSelect?: (job: JobWithCompany) => void
 }
 
-// Employment type labels in Korean
-const employmentTypeLabels: Record<EmploymentType, string> = {
-  FULL_TIME: '정규직',
-  CONTRACT: '계약직',
-  PART_TIME: '파트타임',
-  INTERNSHIP: '인턴',
-  TEMPORARY: '임시직',
-  OTHER: '기타',
-}
+export default memo(function JobCard({ job, onSelect }: JobCardProps) {
+  const { isExpired, daysUntilDeadline } = useMemo(() => ({
+    isExpired: job.deadline ? isPast(new Date(job.deadline)) : false,
+    daysUntilDeadline: job.deadline
+      ? differenceInDays(new Date(job.deadline), new Date())
+      : null,
+  }), [job.deadline])
 
-export default function JobCard({ job, onSelect }: JobCardProps) {
-  const isExpired = job.deadline ? isPast(new Date(job.deadline)) : false
-  const daysUntilDeadline = job.deadline
-    ? differenceInDays(new Date(job.deadline), new Date())
-    : null
-
-  const handleClick = () => {
+  const handleClick = useCallback(() => {
     onSelect?.(job)
-  }
+  }, [onSelect, job])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       onSelect?.(job)
     }
-  }
+  }, [onSelect, job])
 
   return (
     <article
@@ -62,7 +56,6 @@ export default function JobCard({ job, onSelect }: JobCardProps) {
               className="badge badge-remote"
               aria-label="재택근무 가능"
             >
-              {/* Icon + text for non-color-only indication */}
               <svg
                 className="w-3 h-3"
                 fill="currentColor"
@@ -79,7 +72,6 @@ export default function JobCard({ job, onSelect }: JobCardProps) {
               className="badge badge-deadline"
               aria-label={`마감 ${daysUntilDeadline}일 전`}
             >
-              {/* Icon + text */}
               <svg
                 className="w-3 h-3"
                 fill="currentColor"
@@ -270,4 +262,4 @@ export default function JobCard({ job, onSelect }: JobCardProps) {
       </div>
     </article>
   )
-}
+})

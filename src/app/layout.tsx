@@ -19,10 +19,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${inter.className} bg-gray-50 text-gray-900 antialiased`}>
-        {/* Kakao Maps SDK */}
+        {/* Naver Maps SDK */}
         <Script
-          src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_JS_KEY}&autoload=false`}
-          strategy="beforeInteractive"
+          src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${process.env.NEXT_PUBLIC_NAVER_CLIENT_ID}`}
+          strategy="afterInteractive"
         />
 
         {/* Skip to main content link for keyboard users */}

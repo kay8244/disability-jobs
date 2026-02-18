@@ -42,8 +42,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-disability_jobs}
       DATA_GO_KR_API_KEY: ${DATA_GO_KR_API_KEY}
-      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY}
-      NEXT_PUBLIC_KAKAO_JS_KEY: ${NEXT_PUBLIC_KAKAO_JS_KEY}
+      NEXT_PUBLIC_NAVER_CLIENT_ID: ${NEXT_PUBLIC_NAVER_CLIENT_ID}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -60,7 +60,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-disability_jobs}
       DATA_GO_KR_API_KEY: ${DATA_GO_KR_API_KEY}
-      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
     depends_on:
       db:
         condition: service_healthy

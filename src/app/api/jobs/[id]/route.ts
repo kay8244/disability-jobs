@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { JobDetailResponse } from '@/types'
+import { getJobById } from '@/lib/jobs'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const job = await prisma.job.findUnique({
-      where: { id: params.id },
-      include: { company: true },
-    })
+    const job = await getJobById(params.id)
 
     if (!job) {
       return NextResponse.json(
@@ -19,14 +15,7 @@ export async function GET(
       )
     }
 
-    const response: JobDetailResponse = {
-      job: {
-        ...job,
-        distance: undefined,
-      },
-    }
-
-    return NextResponse.json(response)
+    return NextResponse.json({ job })
   } catch (error) {
     console.error('Failed to fetch job:', error)
     return NextResponse.json(

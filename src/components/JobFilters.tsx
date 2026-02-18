@@ -1,18 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { EmploymentType } from '@/types'
+import { memo, useState, useCallback, useMemo } from 'react'
+import { FilterState, EmploymentType } from '@/types'
+import { employmentTypeLabels } from '@/lib/constants'
 import clsx from 'clsx'
-
-interface FilterState {
-  maxDistance?: number
-  isRemoteAvailable: boolean
-  category?: string
-  employmentType?: EmploymentType
-  city?: string
-  sortField: string
-  sortOrder: 'asc' | 'desc'
-}
 
 interface JobFiltersProps {
   filters: FilterState
@@ -39,16 +30,7 @@ const sortOptions = [
   { field: 'distance', order: 'asc' as const, label: '거리순' },
 ]
 
-const employmentTypeLabels: Record<EmploymentType, string> = {
-  FULL_TIME: '정규직',
-  CONTRACT: '계약직',
-  PART_TIME: '파트타임',
-  INTERNSHIP: '인턴',
-  TEMPORARY: '임시직',
-  OTHER: '기타',
-}
-
-export default function JobFilters({
+export default memo(function JobFilters({
   filters,
   onFiltersChange,
   availableCategories,
@@ -59,14 +41,14 @@ export default function JobFilters({
 }: JobFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  const updateFilter = <K extends keyof FilterState>(
+  const updateFilter = useCallback(<K extends keyof FilterState>(
     key: K,
     value: FilterState[K]
   ) => {
     onFiltersChange({ ...filters, [key]: value })
-  }
+  }, [filters, onFiltersChange])
 
-  const handleSortChange = (value: string) => {
+  const handleSortChange = useCallback((value: string) => {
     const option = sortOptions.find(
       (opt) => `${opt.field}-${opt.order}` === value
     )
@@ -77,9 +59,9 @@ export default function JobFilters({
         sortOrder: option.order,
       })
     }
-  }
+  }, [filters, onFiltersChange])
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     onFiltersChange({
       maxDistance: undefined,
       isRemoteAvailable: false,
@@ -89,15 +71,21 @@ export default function JobFilters({
       sortField: 'updatedAt',
       sortOrder: 'desc',
     })
-  }
+  }, [onFiltersChange])
 
-  const activeFilterCount = [
+  const activeFilterCount = useMemo(() => [
     filters.maxDistance,
     filters.isRemoteAvailable,
     filters.category,
     filters.employmentType,
     filters.city,
-  ].filter(Boolean).length
+  ].filter(Boolean).length, [
+    filters.maxDistance,
+    filters.isRemoteAvailable,
+    filters.category,
+    filters.employmentType,
+    filters.city,
+  ])
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -331,4 +319,4 @@ export default function JobFilters({
       </div>
     </div>
   )
-}
+})
