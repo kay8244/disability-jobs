@@ -4,7 +4,8 @@ import { useState, useMemo } from 'react'
 import { JobWithCompany } from '@/types'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
-import { employmentTypeLabels, statusLabels } from '@/lib/constants'
+import { employmentTypeLabels, statusLabels, workEnvironmentLabels } from '@/lib/constants'
+import { WorkEnvironment } from '@/types'
 import MapView from '@/components/MapView'
 import clsx from 'clsx'
 
@@ -109,7 +110,9 @@ export default function JobDetailClient({ job }: JobDetailClientProps) {
           {job.salary && (
             <div>
               <dt className="text-gray-500">급여</dt>
-              <dd className="font-medium text-gray-900">{job.salary}</dd>
+              <dd className="font-medium text-gray-900">
+                {job.salaryType ? `${job.salaryType} ` : ''}{job.salary}
+              </dd>
             </div>
           )}
           {job.deadline && (
@@ -134,6 +137,26 @@ export default function JobDetailClient({ job }: JobDetailClientProps) {
           </div>
         </section>
       )}
+
+      {/* Work environment */}
+      {job.workEnvironment && (() => {
+        const env = job.workEnvironment as WorkEnvironment
+        const entries = Object.entries(env).filter(([, v]) => v)
+        if (entries.length === 0) return null
+        return (
+          <section className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">작업환경</h2>
+            <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              {entries.map(([key, value]) => (
+                <div key={key}>
+                  <dt className="text-gray-500">{workEnvironmentLabels[key] || key}</dt>
+                  <dd className="font-medium text-gray-900">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )
+      })()}
 
       {/* Company info & location */}
       <section className="bg-white rounded-lg border border-gray-200 p-6 mb-6">

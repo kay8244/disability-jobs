@@ -57,6 +57,10 @@ export async function GET() {
     const jobCount = await prisma.job.count()
     const companyCount = await prisma.company.count()
 
+    const apiTotalCount = lastSync?.apiTotalCount ?? null
+    const fetchedCount = lastSync?.recordsTotal ?? 0
+    const hasDiscrepancy = apiTotalCount !== null && apiTotalCount > 0 && fetchedCount < apiTotalCount
+
     return NextResponse.json({
       lastSync: lastSync
         ? {
@@ -67,6 +71,7 @@ export async function GET() {
             recordsCreated: lastSync.recordsCreated,
             recordsUpdated: lastSync.recordsUpdated,
             recordsFailed: lastSync.recordsFailed,
+            apiTotalCount,
           }
         : null,
       totals: {
@@ -75,6 +80,9 @@ export async function GET() {
         totalCreated: stats._sum.recordsCreated || 0,
         totalUpdated: stats._sum.recordsUpdated || 0,
       },
+      apiTotalCount,
+      fetchedCount,
+      hasDiscrepancy,
     })
   } catch (error) {
     console.error('Failed to get sync status:', error)

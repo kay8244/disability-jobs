@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { XMLParser } from 'fast-xml-parser'
+import { WorkEnvironment } from '@/types'
 
 /**
  * data.go.kr API Client for disability employment data
@@ -7,6 +9,11 @@ import axios from 'axios'
  */
 
 const API_BASE_URL = 'https://apis.data.go.kr/B552583/job'
+
+const xmlParser = new XMLParser({
+  ignoreAttributes: true,
+  isArray: (name) => name === 'item',
+})
 
 interface DataGoKrResponse {
   response: {
@@ -46,7 +53,7 @@ export interface RawJobData {
   // Work environment fields
   envBothHands?: string  // 양손 작업환경
   envEyesight?: string   // 시력 작업환경
-  envHandwork?: string   // 수작업 작업환경
+  envHandWork?: string   // 수작업 작업환경
   envLiftPower?: string  // 들기 작업환경
   envLstnTalk?: string   // 듣기/말하기 작업환경
   envStndWalk?: string   // 서기/걷기 작업환경
@@ -67,37 +74,54 @@ export class DataGoKrClient {
   /**
    * Fetch job listings from data.go.kr
    */
-  async fetchJobs(pageNo: number = 1, numOfRows: number = 100): Promise<RawJobData[]> {
+  async fetchJobs(pageNo: number = 1, numOfRows: number = 100): Promise<{ items: RawJobData[], totalCount: number }> {
     try {
       // Build URL with serviceKey directly to avoid double-encoding
-      const url = `${API_BASE_URL}/job_list?serviceKey=${this.apiKey}&pageNo=${pageNo}&numOfRows=${numOfRows}`
+      const url = `${API_BASE_URL}/job_list_env?serviceKey=${this.apiKey}&pageNo=${pageNo}&numOfRows=${numOfRows}`
 
       console.log(`Fetching page ${pageNo} with ${numOfRows} rows...`)
 
-      const response = await axios.get<DataGoKrResponse>(url, {
+      const response = await axios.get(url, {
         timeout: 30000,
       })
 
-      // Handle XML error responses
+      // Handle both JSON and XML responses
+      let parsed: DataGoKrResponse
       if (typeof response.data === 'string') {
-        console.error('Received string response (possibly XML error):', response.data)
-        throw new Error('Invalid API response format')
+        // XML response - parse it
+        try {
+          parsed = xmlParser.parse(response.data) as DataGoKrResponse
+        } catch {
+          console.error('Failed to parse XML response:', response.data.substring(0, 200))
+          throw new Error('Invalid API response format')
+        }
+      } else {
+        // JSON response - already parsed by axios
+        parsed = response.data as DataGoKrResponse
       }
 
-      const { header, body } = response.data.response
-
-      // Check for success codes (different APIs use different codes)
-      if (header.resultCode !== '00' && header.resultCode !== '0000') {
-        throw new Error(`API Error: ${header.resultMsg} (code: ${header.resultCode})`)
+      if (!parsed.response) {
+        console.error('Unexpected response structure:', JSON.stringify(parsed).substring(0, 200))
+        throw new Error('Invalid API response structure')
       }
+
+      const { header, body } = parsed.response
+
+      // Check for success codes (XML parser may return number or string)
+      const code = String(header.resultCode)
+      if (code !== '00' && code !== '0' && code !== '0000') {
+        throw new Error(`API Error: ${header.resultMsg} (code: ${code})`)
+      }
+
+      const totalCount = body.totalCount || 0
 
       // Handle single item vs array
       const items = body.items?.item
       if (!items) {
-        return []
+        return { items: [], totalCount }
       }
 
-      return Array.isArray(items) ? items : [items]
+      return { items: Array.isArray(items) ? items : [items], totalCount }
     } catch (error) {
       if (axios.isAxiosError(error)) {
         console.error('API request failed:', error.message)
@@ -114,20 +138,25 @@ export class DataGoKrClient {
   /**
    * Fetch all jobs with pagination
    */
-  async fetchAllJobs(maxPages: number = 10): Promise<RawJobData[]> {
+  async fetchAllJobs(maxPages: number = 10): Promise<{ jobs: RawJobData[], apiTotalCount: number }> {
     const allJobs: RawJobData[] = []
     let pageNo = 1
     const numOfRows = 100
     let hasMore = true
+    let apiTotalCount = 0
 
     while (hasMore && pageNo <= maxPages) {
       try {
-        const jobs = await this.fetchJobs(pageNo, numOfRows)
-        console.log(`Page ${pageNo}: fetched ${jobs.length} jobs`)
+        const result = await this.fetchJobs(pageNo, numOfRows)
+        console.log(`Page ${pageNo}: fetched ${result.items.length} jobs`)
 
-        allJobs.push(...jobs)
+        if (pageNo === 1) {
+          apiTotalCount = result.totalCount
+        }
 
-        if (jobs.length < numOfRows) {
+        allJobs.push(...result.items)
+
+        if (result.items.length < numOfRows) {
           hasMore = false
         } else {
           pageNo++
@@ -140,8 +169,8 @@ export class DataGoKrClient {
       }
     }
 
-    console.log(`Total jobs fetched: ${allJobs.length}`)
-    return allJobs
+    console.log(`Total jobs fetched: ${allJobs.length}, API totalCount: ${apiTotalCount}`)
+    return { jobs: allJobs, apiTotalCount }
   }
 }
 
@@ -204,6 +233,8 @@ export function normalizeJobData(raw: RawJobData): {
     category: string | null
     employmentType: 'FULL_TIME' | 'CONTRACT' | 'PART_TIME' | 'INTERNSHIP' | 'TEMPORARY' | 'OTHER'
     salary: string | null
+    salaryType: string | null
+    workEnvironment: WorkEnvironment | null
     isRemoteAvailable: boolean
     workLocation: string | null
     deadline: Date | null
@@ -240,26 +271,25 @@ export function normalizeJobData(raw: RawJobData): {
   // Parse deadline from termDate
   const deadline = parseDate(raw.termDate)
 
-  // Build job description from available fields
+  // Extract salaryType as a separate field
+  const salaryType = raw.salaryType || null
+
+  // Build work environment JSON object
+  const envEntries: Partial<WorkEnvironment> = {}
+  if (raw.envBothHands) envEntries.bothHands = raw.envBothHands
+  if (raw.envEyesight) envEntries.eyesight = raw.envEyesight
+  if (raw.envHandWork) envEntries.handwork = raw.envHandWork
+  if (raw.envLiftPower) envEntries.liftPower = raw.envLiftPower
+  if (raw.envLstnTalk) envEntries.listenTalk = raw.envLstnTalk
+  if (raw.envStndWalk) envEntries.standWalk = raw.envStndWalk
+  const workEnvironment = Object.keys(envEntries).length > 0 ? envEntries as WorkEnvironment : null
+
+  // Build job description (only core info, not salaryType/workEnvironment)
   const descriptionParts: string[] = []
   if (raw.reqCareer) descriptionParts.push(`[요구경력] ${raw.reqCareer}`)
   if (raw.reqEduc) descriptionParts.push(`[요구학력] ${raw.reqEduc}`)
   if (raw.enterType) descriptionParts.push(`[입사형태] ${raw.enterType}`)
-  if (raw.salaryType) descriptionParts.push(`[임금형태] ${raw.salaryType}`)
   if (raw.regagnName) descriptionParts.push(`[담당기관] ${raw.regagnName}`)
-
-  // Add work environment info if available
-  const envInfo: string[] = []
-  if (raw.envBothHands) envInfo.push(`양손작업: ${raw.envBothHands}`)
-  if (raw.envEyesight) envInfo.push(`시력: ${raw.envEyesight}`)
-  if (raw.envHandwork) envInfo.push(`수작업: ${raw.envHandwork}`)
-  if (raw.envLiftPower) envInfo.push(`들기: ${raw.envLiftPower}`)
-  if (raw.envLstnTalk) envInfo.push(`듣기/말하기: ${raw.envLstnTalk}`)
-  if (raw.envStndWalk) envInfo.push(`서기/걷기: ${raw.envStndWalk}`)
-
-  if (envInfo.length > 0) {
-    descriptionParts.push(`\n[작업환경]\n${envInfo.join('\n')}`)
-  }
 
   const description = descriptionParts.length > 0 ? descriptionParts.join('\n') : null
 
@@ -285,6 +315,8 @@ export function normalizeJobData(raw: RawJobData): {
       category: raw.jobNm || null,
       employmentType,
       salary: raw.salary || null,
+      salaryType,
+      workEnvironment,
       isRemoteAvailable,
       workLocation: raw.compAddr || null,
       deadline,

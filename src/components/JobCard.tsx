@@ -164,6 +164,16 @@ export default memo(function JobCard({ job, onSelect }: JobCardProps) {
           </dd>
         </div>
 
+        {/* Salary */}
+        {job.salary && (
+          <div>
+            <dt className="sr-only">급여</dt>
+            <dd className="text-gray-600">
+              {job.salaryType ? `${job.salaryType} ` : ''}{job.salary}
+            </dd>
+          </div>
+        )}
+
         {/* Deadline */}
         {job.deadline && (
           <div>

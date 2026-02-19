@@ -36,10 +36,14 @@ export async function syncJobsFromDataGoKr(): Promise<{
     console.log('Starting data sync from data.go.kr...')
 
     const client = new DataGoKrClient()
-    const rawJobs = await client.fetchAllJobs()
+    const { jobs: rawJobs, apiTotalCount } = await client.fetchAllJobs()
     stats.total = rawJobs.length
 
-    console.log(`Fetched ${rawJobs.length} job listings`)
+    console.log(`Fetched ${rawJobs.length} job listings (API totalCount: ${apiTotalCount})`)
+
+    if (apiTotalCount > 0 && rawJobs.length < apiTotalCount) {
+      console.warn(`⚠️ Discrepancy: fetched ${rawJobs.length} but API reports ${apiTotalCount} total`)
+    }
 
     // Process each job
     for (const rawJob of rawJobs) {
@@ -63,6 +67,7 @@ export async function syncJobsFromDataGoKr(): Promise<{
         recordsCreated: stats.created,
         recordsUpdated: stats.updated,
         recordsFailed: stats.failed,
+        apiTotalCount,
         completedAt: new Date(),
       },
     })
@@ -148,6 +153,8 @@ async function processJobData(
         category: normalized.job.category,
         employmentType: normalized.job.employmentType,
         salary: normalized.job.salary,
+        salaryType: normalized.job.salaryType,
+        workEnvironment: normalized.job.workEnvironment ? { ...normalized.job.workEnvironment } : undefined,
         isRemoteAvailable: normalized.job.isRemoteAvailable,
         workLocation: normalized.job.workLocation,
         deadline: normalized.job.deadline,
@@ -167,6 +174,8 @@ async function processJobData(
         category: normalized.job.category,
         employmentType: normalized.job.employmentType,
         salary: normalized.job.salary,
+        salaryType: normalized.job.salaryType,
+        workEnvironment: normalized.job.workEnvironment ? { ...normalized.job.workEnvironment } : undefined,
         isRemoteAvailable: normalized.job.isRemoteAvailable,
         workLocation: normalized.job.workLocation,
         deadline: normalized.job.deadline,

@@ -1,5 +1,15 @@
 import { Company, Job, EmploymentType, JobStatus, GeoCodeStatus } from '@prisma/client'
 
+// Work environment requirements from API
+export interface WorkEnvironment {
+  bothHands?: string   // 양손 작업환경
+  eyesight?: string    // 시력 작업환경
+  handwork?: string    // 수작업 작업환경
+  liftPower?: string   // 들기 작업환경
+  listenTalk?: string  // 듣기/말하기 작업환경
+  standWalk?: string   // 서기/걷기 작업환경
+}
+
 // Job with company information
 export interface JobWithCompany extends Job {
   company: Company

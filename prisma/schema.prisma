@@ -59,6 +59,7 @@ model Job {
   category      String?  // Job category (직무 카테고리)
   employmentType EmploymentType @default(FULL_TIME)
   salary        String?  // Salary information (text, as format varies)
+  salaryType    String?  // Salary type (연봉, 월급, 시급 등)
   salaryMin     Int?     // Minimum salary (for filtering)
   salaryMax     Int?     // Maximum salary (for filtering)
 
@@ -66,6 +67,7 @@ model Job {
   isRemoteAvailable Boolean @default(false) // 재택 가능 여부
   workLocation  String?  // Work location if different from company
   workHours     String?  // Working hours description
+  workEnvironment Json?  // Work environment requirements (JSON)
 
   // Dates
   postedAt      DateTime?
@@ -105,6 +107,7 @@ model SyncLog {
   recordsCreated Int   @default(0)
   recordsUpdated Int   @default(0)
   recordsFailed Int    @default(0)
+  apiTotalCount Int?   // Total count reported by API
   errorMessage String? @db.Text
   startedAt   DateTime @default(now())
   completedAt DateTime?
