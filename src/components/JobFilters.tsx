@@ -1,8 +1,8 @@
 'use client'
 
-import { memo, useState, useCallback, useMemo } from 'react'
+import { memo, useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { FilterState, EmploymentType } from '@/types'
-import { employmentTypeLabels } from '@/lib/constants'
+import { employmentTypeLabels, workEnvironmentLabels } from '@/lib/constants'
 import clsx from 'clsx'
 
 interface JobFiltersProps {
@@ -11,6 +11,8 @@ interface JobFiltersProps {
   availableCategories: string[]
   availableCities: string[]
   availableEmploymentTypes: EmploymentType[]
+  availableSalaryTypes: string[]
+  availableWorkEnvironmentOptions: Record<string, string[]>
   isLocationEnabled: boolean
   onRequestLocation: () => void
 }
@@ -30,16 +32,52 @@ const sortOptions = [
   { field: 'distance', order: 'asc' as const, label: '거리순' },
 ]
 
+// Map work environment filter keys to FilterState keys
+const envFilterKeyMap: Record<string, keyof FilterState> = {
+  standWalk: 'envStandWalk',
+  liftPower: 'envLiftPower',
+  handwork: 'envHandwork',
+  eyesight: 'envEyesight',
+  bothHands: 'envBothHands',
+  listenTalk: 'envListenTalk',
+}
+
 export default memo(function JobFilters({
   filters,
   onFiltersChange,
   availableCategories,
   availableCities,
   availableEmploymentTypes,
+  availableSalaryTypes,
+  availableWorkEnvironmentOptions,
   isLocationEnabled,
   onRequestLocation,
 }: JobFiltersProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [searchInput, setSearchInput] = useState(filters.query ?? '')
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // Sync search input when filters.query is cleared externally
+  useEffect(() => {
+    if (!filters.query && searchInput) {
+      setSearchInput('')
+    }
+  }, [filters.query]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      onFiltersChange({ ...filters, query: value || undefined })
+    }, 300)
+  }, [filters, onFiltersChange])
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
 
   const updateFilter = useCallback(<K extends keyof FilterState>(
     key: K,
@@ -62,33 +100,88 @@ export default memo(function JobFilters({
   }, [filters, onFiltersChange])
 
   const clearFilters = useCallback(() => {
+    setSearchInput('')
     onFiltersChange({
+      query: undefined,
       maxDistance: undefined,
       isRemoteAvailable: false,
       category: undefined,
       employmentType: undefined,
+      salaryType: undefined,
       city: undefined,
+      envStandWalk: undefined,
+      envLiftPower: undefined,
+      envHandwork: undefined,
+      envEyesight: undefined,
+      envBothHands: undefined,
+      envListenTalk: undefined,
       sortField: 'updatedAt',
       sortOrder: 'desc',
     })
   }, [onFiltersChange])
 
   const activeFilterCount = useMemo(() => [
+    filters.query,
     filters.maxDistance,
     filters.isRemoteAvailable,
     filters.category,
     filters.employmentType,
+    filters.salaryType,
     filters.city,
+    filters.envStandWalk,
+    filters.envLiftPower,
+    filters.envHandwork,
+    filters.envEyesight,
+    filters.envBothHands,
+    filters.envListenTalk,
   ].filter(Boolean).length, [
+    filters.query,
     filters.maxDistance,
     filters.isRemoteAvailable,
     filters.category,
     filters.employmentType,
+    filters.salaryType,
     filters.city,
+    filters.envStandWalk,
+    filters.envLiftPower,
+    filters.envHandwork,
+    filters.envEyesight,
+    filters.envBothHands,
+    filters.envListenTalk,
   ])
+
+  const hasWorkEnvOptions = Object.keys(availableWorkEnvironmentOptions).length > 0
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">
+      {/* Search input */}
+      <div className="relative mb-4">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg
+            className="w-5 h-5 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+        </div>
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="회사명, 직무, 지역 검색..."
+          aria-label="채용 공고 검색"
+          className="form-input w-full pl-10"
+        />
+      </div>
+
       {/* Filter header with expand/collapse */}
       <div className="flex items-center justify-between">
         <button
@@ -305,6 +398,67 @@ export default memo(function JobFilters({
               ))}
             </select>
           </div>
+        )}
+
+        {/* Salary type filter */}
+        {availableSalaryTypes.length > 0 && (
+          <div className="form-field">
+            <label htmlFor="salary-type-select" className="form-label">
+              임금 형태
+            </label>
+            <select
+              id="salary-type-select"
+              value={filters.salaryType ?? ''}
+              onChange={(e) =>
+                updateFilter('salaryType', e.target.value || undefined)
+              }
+              className="form-input"
+            >
+              <option value="">전체</option>
+              {availableSalaryTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Work environment filters */}
+        {hasWorkEnvOptions && (
+          <fieldset className="border-t border-gray-200 pt-4">
+            <legend className="form-label text-base font-semibold text-gray-800 mb-3">
+              작업환경
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {Object.entries(availableWorkEnvironmentOptions).map(([key, values]) => {
+                const filterKey = envFilterKeyMap[key]
+                if (!filterKey) return null
+                return (
+                  <div key={key} className="form-field">
+                    <label htmlFor={`env-${key}-select`} className="form-label">
+                      {workEnvironmentLabels[key] || key}
+                    </label>
+                    <select
+                      id={`env-${key}-select`}
+                      value={(filters[filterKey] as string) ?? ''}
+                      onChange={(e) =>
+                        updateFilter(filterKey, e.target.value || undefined)
+                      }
+                      className="form-input text-sm"
+                    >
+                      <option value="">전체</option>
+                      {values.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
+          </fieldset>
         )}
 
         {/* Clear filters button */}

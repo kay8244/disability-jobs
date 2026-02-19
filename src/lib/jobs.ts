@@ -12,12 +12,20 @@ export interface GetJobsParams {
   isRemoteAvailable?: boolean
   category?: string
   employmentType?: EmploymentType
+  salaryType?: string
   city?: string
   district?: string
   query?: string
   userLat?: number
   userLng?: number
   maxDistance?: number
+  // Work environment filters
+  envStandWalk?: string
+  envLiftPower?: string
+  envHandwork?: string
+  envEyesight?: string
+  envBothHands?: string
+  envListenTalk?: string
 }
 
 export interface GetJobsResult {
@@ -32,6 +40,8 @@ export interface GetJobsResult {
     categories: string[]
     cities: string[]
     employmentTypes: EmploymentType[]
+    salaryTypes: string[]
+    workEnvironmentOptions: Record<string, string[]>
   }
 }
 
@@ -39,6 +49,8 @@ export interface FilterOptions {
   categories: string[]
   cities: string[]
   employmentTypes: EmploymentType[]
+  salaryTypes: string[]
+  workEnvironmentOptions: Record<string, string[]>
 }
 
 const FILTER_CACHE_KEY = 'filter-options'
@@ -53,23 +65,55 @@ export async function getFilterOptions(): Promise<FilterOptions> {
   return cached(
     FILTER_CACHE_KEY,
     async () => {
-      const [categories, cities, employmentTypes] = await Promise.all([
+      const activeJobWhere = {
+        status: JobStatus.ACTIVE,
+        OR: [{ deadline: { gte: new Date() } }, { deadline: null }],
+      }
+      const [categories, cities, employmentTypes, salaryTypes, workEnvJobs] = await Promise.all([
         prisma.job.findMany({
-          where: { status: JobStatus.ACTIVE, category: { not: null } },
+          where: { ...activeJobWhere, category: { not: null } },
           select: { category: true },
           distinct: ['category'],
         }),
         prisma.company.findMany({
-          where: { city: { not: null } },
+          where: {
+            city: { not: null },
+            jobs: { some: activeJobWhere },
+          },
           select: { city: true },
           distinct: ['city'],
         }),
         prisma.job.findMany({
-          where: { status: JobStatus.ACTIVE },
+          where: activeJobWhere,
           select: { employmentType: true },
           distinct: ['employmentType'],
         }),
+        prisma.job.findMany({
+          where: { ...activeJobWhere, salaryType: { not: null } },
+          select: { salaryType: true },
+          distinct: ['salaryType'],
+        }),
+        prisma.job.findMany({
+          where: { ...activeJobWhere, workEnvironment: { not: Prisma.DbNull } },
+          select: { workEnvironment: true },
+        }),
       ])
+
+      // Extract unique work environment values per key
+      const workEnvironmentOptions: Record<string, string[]> = {}
+      const envKeys = ['standWalk', 'liftPower', 'handwork', 'eyesight', 'bothHands', 'listenTalk']
+      for (const key of envKeys) {
+        const values = new Set<string>()
+        for (const job of workEnvJobs) {
+          const env = job.workEnvironment as Record<string, string> | null
+          if (env && env[key]) {
+            values.add(env[key])
+          }
+        }
+        if (values.size > 0) {
+          workEnvironmentOptions[key] = Array.from(values).sort()
+        }
+      }
 
       return {
         categories: categories
@@ -79,6 +123,10 @@ export async function getFilterOptions(): Promise<FilterOptions> {
           .map((c) => c.city)
           .filter((c): c is string => c !== null),
         employmentTypes: employmentTypes.map((e) => e.employmentType),
+        salaryTypes: salaryTypes
+          .map((s) => s.salaryType)
+          .filter((s): s is string => s !== null),
+        workEnvironmentOptions,
       }
     },
     FILTER_CACHE_TTL
@@ -102,19 +150,29 @@ export async function getJobs(params: GetJobsParams = {}): Promise<GetJobsResult
     isRemoteAvailable,
     category,
     employmentType,
+    salaryType,
     city,
     district,
     query,
     userLat,
     userLng,
     maxDistance,
+    envStandWalk,
+    envLiftPower,
+    envHandwork,
+    envEyesight,
+    envBothHands,
+    envListenTalk,
   } = params
 
   const skip = (page - 1) * limit
 
-  // Build where clause
+  // Build where clause - only show active jobs with future deadlines
   const where: Prisma.JobWhereInput = {
     status: JobStatus.ACTIVE,
+    AND: [
+      { OR: [{ deadline: { gte: new Date() } }, { deadline: null }] },
+    ],
   }
 
   if (isRemoteAvailable) {
@@ -127,6 +185,30 @@ export async function getJobs(params: GetJobsParams = {}): Promise<GetJobsResult
 
   if (employmentType) {
     where.employmentType = employmentType
+  }
+
+  if (salaryType) {
+    where.salaryType = salaryType
+  }
+
+  // Work environment JSON filters
+  const envFilters: { key: string; value: string | undefined }[] = [
+    { key: 'standWalk', value: envStandWalk },
+    { key: 'liftPower', value: envLiftPower },
+    { key: 'handwork', value: envHandwork },
+    { key: 'eyesight', value: envEyesight },
+    { key: 'bothHands', value: envBothHands },
+    { key: 'listenTalk', value: envListenTalk },
+  ]
+  for (const { key, value } of envFilters) {
+    if (value) {
+      (where.AND as Prisma.JobWhereInput[]).push({
+        workEnvironment: {
+          path: [key],
+          string_contains: value,
+        },
+      })
+    }
   }
 
   if (city || district) {

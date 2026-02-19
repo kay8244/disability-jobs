@@ -21,6 +21,8 @@ interface JobListClientProps {
     categories: string[]
     cities: string[]
     employmentTypes: EmploymentType[]
+    salaryTypes: string[]
+    workEnvironmentOptions: Record<string, string[]>
   }
 }
 
@@ -42,6 +44,9 @@ function buildJobsUrl(
     sortOrder: filters.sortOrder,
   })
 
+  if (filters.query) {
+    params.set('query', filters.query)
+  }
   if (filters.isRemoteAvailable) {
     params.set('isRemoteAvailable', 'true')
   }
@@ -51,8 +56,29 @@ function buildJobsUrl(
   if (filters.employmentType) {
     params.set('employmentType', filters.employmentType)
   }
+  if (filters.salaryType) {
+    params.set('salaryType', filters.salaryType)
+  }
   if (filters.city) {
     params.set('city', filters.city)
+  }
+  if (filters.envStandWalk) {
+    params.set('envStandWalk', filters.envStandWalk)
+  }
+  if (filters.envLiftPower) {
+    params.set('envLiftPower', filters.envLiftPower)
+  }
+  if (filters.envHandwork) {
+    params.set('envHandwork', filters.envHandwork)
+  }
+  if (filters.envEyesight) {
+    params.set('envEyesight', filters.envEyesight)
+  }
+  if (filters.envBothHands) {
+    params.set('envBothHands', filters.envBothHands)
+  }
+  if (filters.envListenTalk) {
+    params.set('envListenTalk', filters.envListenTalk)
   }
   if (userLocation) {
     params.set('userLat', userLocation.lat.toString())
@@ -118,6 +144,8 @@ export default function JobListClient({
   const availableCategories = data?.filters.categories ?? initialFilters.categories
   const availableCities = data?.filters.cities ?? initialFilters.cities
   const availableEmploymentTypes = data?.filters.employmentTypes ?? initialFilters.employmentTypes
+  const availableSalaryTypes = data?.filters.salaryTypes ?? initialFilters.salaryTypes
+  const availableWorkEnvironmentOptions = data?.filters.workEnvironmentOptions ?? initialFilters.workEnvironmentOptions
 
   // Show loading only on initial load (not on filter changes with keepPreviousData)
   const loading = isLoading && !data
@@ -223,6 +251,8 @@ export default function JobListClient({
           availableCategories={availableCategories}
           availableCities={availableCities}
           availableEmploymentTypes={availableEmploymentTypes}
+          availableSalaryTypes={availableSalaryTypes}
+          availableWorkEnvironmentOptions={availableWorkEnvironmentOptions}
           isLocationEnabled={isLocationEnabled}
           onRequestLocation={handleRequestLocation}
         />

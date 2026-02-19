@@ -65,6 +65,8 @@ export interface JobListResponse {
     categories: string[]
     cities: string[]
     employmentTypes: EmploymentType[]
+    salaryTypes: string[]
+    workEnvironmentOptions: Record<string, string[]>
   }
 }
 
@@ -74,11 +76,20 @@ export interface JobDetailResponse {
 
 // Filter state for job list UI
 export interface FilterState {
+  query?: string
   maxDistance?: number
   isRemoteAvailable: boolean
   category?: string
   employmentType?: EmploymentType
+  salaryType?: string
   city?: string
+  // Work environment filters
+  envStandWalk?: string
+  envLiftPower?: string
+  envHandwork?: string
+  envEyesight?: string
+  envBothHands?: string
+  envListenTalk?: string
   sortField: string
   sortOrder: 'asc' | 'desc'
 }

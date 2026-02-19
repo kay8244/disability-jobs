@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import Script from 'next/script'
+import FontSizeControl from '@/components/FontSizeControl'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -21,8 +22,8 @@ export default function RootLayout({
       <body className={`${inter.className} bg-gray-50 text-gray-900 antialiased`}>
         {/* Naver Maps SDK */}
         <Script
-          src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${process.env.NEXT_PUBLIC_NAVER_CLIENT_ID}`}
-          strategy="afterInteractive"
+          src={`https://openapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${process.env.NEXT_PUBLIC_NAVER_CLIENT_ID}`}
+          strategy="beforeInteractive"
         />
 
         {/* Skip to main content link for keyboard users */}
@@ -41,18 +42,21 @@ export default function RootLayout({
               >
                 장애인 채용정보
               </a>
-              <nav aria-label="주 메뉴">
-                <ul className="flex items-center gap-4">
-                  <li>
-                    <a
-                      href="/"
-                      className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600"
-                    >
-                      채용공고
-                    </a>
-                  </li>
-                </ul>
-              </nav>
+              <div className="flex items-center gap-4">
+                <FontSizeControl />
+                <nav aria-label="주 메뉴">
+                  <ul className="flex items-center gap-4">
+                    <li>
+                      <a
+                        href="/"
+                        className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600"
+                      >
+                        채용공고
+                      </a>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
             </div>
           </div>
         </header>

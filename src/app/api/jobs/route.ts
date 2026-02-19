@@ -14,12 +14,19 @@ export async function GET(request: NextRequest) {
       isRemoteAvailable: searchParams.get('isRemoteAvailable') === 'true' || undefined,
       category: searchParams.get('category') || undefined,
       employmentType: (searchParams.get('employmentType') as EmploymentType) || undefined,
+      salaryType: searchParams.get('salaryType') || undefined,
       city: searchParams.get('city') || undefined,
       district: searchParams.get('district') || undefined,
       query: searchParams.get('query') || undefined,
       userLat: searchParams.get('userLat') ? parseFloat(searchParams.get('userLat')!) : undefined,
       userLng: searchParams.get('userLng') ? parseFloat(searchParams.get('userLng')!) : undefined,
       maxDistance: searchParams.get('maxDistance') ? parseFloat(searchParams.get('maxDistance')!) : undefined,
+      envStandWalk: searchParams.get('envStandWalk') || undefined,
+      envLiftPower: searchParams.get('envLiftPower') || undefined,
+      envHandwork: searchParams.get('envHandwork') || undefined,
+      envEyesight: searchParams.get('envEyesight') || undefined,
+      envBothHands: searchParams.get('envBothHands') || undefined,
+      envListenTalk: searchParams.get('envListenTalk') || undefined,
     })
 
     return NextResponse.json(result)
